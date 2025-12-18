@@ -80,11 +80,61 @@ class List {
     return List{elements, data};
   }
 
+  void print() {
+    const size_t n = elements.size();
+    const size_t print_count = 10;
+
+    std::cout << "+--------+------------------+------------------+------------------+------------------+------------------+------------------+" << std::endl;
+    std::cout << "| Row No.|       UID        |     Address      |       Size       |     Process      |       Next       |     Previous     |" << std::endl;
+    std::cout << "+--------+------------------+------------------+------------------+------------------+------------------+------------------+" << std::endl;
+
+    size_t first_limit = std::min(print_count, n);
+    for (size_t i = 0; i < first_limit; i++) {
+      print_row(i);
+    }
+
+    if (n > 2 * print_count) {
+      std::cout << "|  ...   |       ...        |       ...        |       ...        |       ...        |       ...        |       ...        |" << std::endl;
+    }
+
+    if (n > print_count) {
+      size_t last_start = std::max(first_limit, n - print_count);
+      for (size_t i = last_start; i < n; i++) {
+        print_row(i);
+      }
+    }
+
+    std::cout << "+--------+------------------+------------------+------------------+------------------+------------------+------------------+" << std::endl;
+    std::cout << "Total elements: " << n << std::endl;
+  }
 
   ~List() {
     delete[] this->data;
   }
   private:
+  void print_row(size_t index) {
+    const Element& elem = elements[index];
+
+    std::cout << "| " << std::setw(6) << std::right << index << " ";
+    std::cout << "| " << std::setw(16) << std::right << elem.uid << " ";
+    std::cout << "| 0x" << std::setw(14) << std::right << std::hex << reinterpret_cast<uintptr_t>(elem.data_ptr) << std::dec << " ";
+    std::cout << "| " << std::setw(16) << std::right << elem.data_size << " ";
+    std::cout << "| " << std::setw(16) << std::right << elem.pid << " ";
+
+    if (elem.next_offset == 0) {
+      std::cout << "| " << std::setw(16) << std::right << "NULL" << " ";
+    } else {
+      std::cout << "| " << std::setw(16) << std::right << (elem.next_offset - 1) << " ";
+    }
+
+    if (elem.prev_offset == 0) {
+      std::cout << "| " << std::setw(16) << std::right << "NULL" << " ";
+    } else {
+      std::cout << "| " << std::setw(16) << std::right << (elem.prev_offset - 1) << " ";
+    }
+
+    std::cout << "|" << std::endl;
+  }
 
   List(std::vector<Element> elements, uint8_t* data) {
     this->elements = elements;
