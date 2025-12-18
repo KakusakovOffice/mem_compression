@@ -28,7 +28,7 @@ public:
         size_t next_offset;  // Ссылка (индекс + 1) на следующий элемент того же процесса.
         size_t prev_offset;  // Ссылка (индекс + 1) на предыдущий элемент того же процесса.
     };
-    static List generate_list(size_t n_elements, double free_percent) {
+    static List generate(size_t n_elements, double free_percent) {
         size_t n_processes = std::max(n_elements / 100, (size_t)3);
 
         std::random_device rd{};
@@ -76,13 +76,31 @@ public:
 
         return List{elements, data};
     }
+    void print() {
+        const size_t print_limit = 20;
+
+        std::cout << "ROW NO | UID | ADDR | SIZE | PID | NEXT | PREV\n";
+        for (int i = 0; i < print_limit; i++) {
+            auto& el = this->elements[i];
+            const char* sep = " | ";
+            std::cout
+                << i << sep 
+                << el.uid << sep
+                << el.data_ptr << sep
+                << el.data_size << sep
+                << el.pid << sep
+                << el.next_offset << sep
+                << el.prev_offset << '\n'; 
+        }
+        std::cout << std::flush;
+    }
+    ~List() {
+        delete[] this->data;
+    }
 private:
     List(std::vector<Element> elements, uint8_t* data) {
         this->elements = elements;
         this->data = data;
-    }
-    ~List() {
-        delete[] this->data;
     }
     std::vector<Element> elements;
     uint8_t* data;
@@ -131,6 +149,9 @@ int main(int argc, char *argv[]) {
             << std::endl;
         std::exit(EXIT_FAILURE);
     }
+
+    auto list = List::generate(n_rows, (double)free_percent/100);
+    list.print();
 
     return 0;
 }
