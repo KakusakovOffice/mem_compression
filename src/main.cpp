@@ -100,15 +100,17 @@ class List {
       kvp.second = data_offset;
     }
 
+    auto sizes1 = sizes;
+
     uint8_t* data1 = new uint8_t[total_size]();
     for (const auto& el : elements) {
       std::memcpy(&data1[sizes[el.pid] - el.data_size], el.data_ptr, el.data_size);
       sizes[el.pid] -= el.data_size;
     }
 
-    this->elements.resize(elements.size());
+    this->elements.resize(sizes.size());
     size_t i = 0;
-    for (const auto& kvp : sizes) {
+    for (const auto& kvp : sizes1) {
       this->elements[i].data_ptr = &data1[sizes[kvp.first]];
       this->elements[i].pid = kvp.first;
       this->elements[i].data_size = kvp.second;
