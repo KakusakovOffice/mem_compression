@@ -45,30 +45,33 @@ class List {
 
     std::vector<Element> elements{};
     size_t total_size = 0;
+    size_t free_size = 0;
+
     elements.reserve(n_elements);
     for (size_t i = 0; i < n_elements; i++) {
-      uint64_t uid = i + 1;
       size_t size = std::max((size_t)std::floor(size_rng(rng)), (size_t)1);
-      total_size += size;
-      uint64_t pid = 0;
-      bool is_free = is_free_rng(rng) < free_percent;
-      if (!is_free) {
-        pid = (uint64_t)std::floor(pid_rng(rng));
-      }
+
+      uint64_t pid =
+        is_free_rng(rng) < free_percent ?
+          0 : (uint64_t)std::floor(pid_rng(rng));
+
       size_t prev = last_element_offsets[pid];
+
       if (prev != 0)
         elements[prev - 1].next_offset = i + 1;
       last_element_offsets[pid] = i + 1;
 
-
       Element element{
-        .uid = uid,
+        .uid = i + 1,
         .data_ptr = nullptr,
         .data_size = size,
         .pid = pid,
         .next_offset = 0,
         .prev_offset = prev,
       };
+
+      free_size += size;
+      total_size += size;
       elements.push_back(element);
     }
 
@@ -79,51 +82,57 @@ class List {
       data_ptr += element.data_size;
     }
 
-    return List{elements, data};
+    return List{elements, data, free_size};
   }
 
   void defragment_full() {
-    std::unordered_map<uint64_t, size_t> sizes{};
-    uint64_t max_pid = 0;
-    size_t total_size = 0;
-    for (const auto& el : elements) {
-      if (sizes.count(el.pid) == 0) {
-        sizes[el.pid] = 0;
+    std::cout << free_size << std::endl;
+    uint8_t* new_data = new uint8_t[free_size]();
+    size_t offset = 0;
+
+    for (auto& el : elements) {
+      if (el.pid == 0) {
+        std::memcpy(new_data + offset, el.data_ptr, el.data_size);
+        offset += el.data_size;
       }
-      sizes[el.pid] += el.data_size;
-      total_size += el.data_size;
-      max_pid = std::max(max_pid, el.pid);
-    }
-    size_t data_offset = 0;
-    for (auto& kvp : sizes) {
-      data_offset += kvp.second;
-      kvp.second = data_offset;
     }
 
-    auto sizes1 = sizes;
-
-    uint8_t* data1 = new uint8_t[total_size]();
-    for (const auto& el : elements) {
-      std::memcpy(&data1[sizes[el.pid] - el.data_size], el.data_ptr, el.data_size);
-      sizes[el.pid] -= el.data_size;
+    std::unordered_map<size_t, size_t> old_to_new;
+    size_t new_index = 0;
+    for (size_t i = 0; i < elements.size(); i++) {
+      if (elements[i].pid != 0) {
+        old_to_new[i] = new_index;
+        new_index++;
+      }
     }
 
-    this->elements.resize(sizes.size());
-    size_t i = 0;
-    for (const auto& kvp : sizes1) {
-      this->elements[i].data_ptr = &data1[sizes[kvp.first]];
-      this->elements[i].pid = kvp.first;
-      this->elements[i].data_size = kvp.second;
-      this->elements[i].next_offset = 0;
-      this->elements[i].prev_offset = 0;
-      i++;
-    }
+    elements.erase(std::remove_if(elements.begin(), elements.end(), [&](Element& e) {
+      if (e.pid == 0) {
+        return true;
+      } else {
+        if (e.next_offset != 0) {
+          e.next_offset = old_to_new[e.next_offset];
+        }
+        if (e.prev_offset != 0) {
+          e.prev_offset = old_to_new[e.prev_offset];
+        }
+        return false;
+      }
+    }), elements.end());
 
-    delete[] this->data;
-    this->data = data1;
+    elements.push_back({
+      .data_ptr = new_data,
+      .data_size = free_size,
+      .pid = 0,
+      .next_offset = 0,
+      .prev_offset = 0
+    });
+
+    elements.shrink_to_fit();
   }
 
   void defragment_free() {
+
     // TODO: ...
   }
 
@@ -183,12 +192,14 @@ class List {
     std::cout << "|" << std::endl;
   }
 
-  List(std::vector<Element> elements, uint8_t* data) {
+  List(std::vector<Element> elements, uint8_t* data, size_t free_size) {
     this->elements = elements;
     this->data = data;
+    this->free_size = free_size;
   }
   std::vector<Element> elements;
   uint8_t* data;
+  size_t free_size;
 };
 
 int main(int argc, char *argv[]) {
