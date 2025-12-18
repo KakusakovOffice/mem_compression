@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <cstdlib>
 #include <algorithm>
+#include <iomanip>
 
 // Парсим аргументы
 // list1 = init_list()
@@ -34,9 +35,8 @@ public:
         std::random_device rd{};
         std::mt19937 rng{rd()};
         std::uniform_real_distribution<double> is_free_rng{0, 1};
-        std::uniform_real_distribution<uint64_t> pid_rng{1, n_processes};
-        std::uniform_real_distribution<uint64_t> uniform_rng{0, n_processes};
-        std::normal_distribution<size_t> size_rng{40, 2};
+        std::uniform_real_distribution<double> pid_rng{1, (double)n_processes};
+        std::normal_distribution<double> size_rng{40, 2};
 
         std::vector<size_t> last_element_offsets{n_processes, 0};
 
@@ -45,12 +45,12 @@ public:
         elements.reserve(n_elements);
         for (size_t i = 0; i < n_elements; i++) {
             uint64_t uid = i + 1;
-            size_t size = std::max(size_rng(rng), (size_t)1);
+            size_t size = std::max((size_t)std::floor(size_rng(rng)), (size_t)1);
             total_size += size;
             uint64_t pid = 0;
             bool is_free = is_free_rng(rng) < free_percent;
             if (!is_free) {
-                pid = pid_rng(rng);
+                pid = (uint64_t)std::floor(pid_rng(rng));
             }
             size_t prev = last_element_offsets[pid];
             elements[prev].next_offset = i + 1;
@@ -69,7 +69,7 @@ public:
 
         uint8_t* data = new uint8_t[total_size]();
         uint8_t* data_ptr = data;
-        for (auto element : elements) {
+        for (auto& element : elements) {
             element.data_ptr = data_ptr;
             data_ptr += element.data_size;
         }
@@ -79,14 +79,14 @@ public:
     void print() {
         const size_t print_limit = 20;
 
-        std::cout << "ROW NO | UID | ADDR | SIZE | PID | NEXT | PREV\n";
-        for (int i = 0; i < print_limit; i++) {
+        std::cout << "ROW NUM | UID | ADDR | SIZE | PID | NEXT | PREV\n";
+        for (int i = 0; i < std::min(print_limit, this->elements.size()); i++) {
             auto& el = this->elements[i];
             const char* sep = " | ";
             std::cout
                 << i << sep 
                 << el.uid << sep
-                << el.data_ptr << sep
+                << std::hex << reinterpret_cast<uintptr_t>(el.data_ptr) << std::dec << sep
                 << el.data_size << sep
                 << el.pid << sep
                 << el.next_offset << sep
