@@ -91,7 +91,7 @@ class List {
         sizes[el.pid] = 0;
       }
       sizes[el.pid] += el.data_size;
-      total_size += total_size;
+      total_size += el.data_size;
       max_pid = std::max(max_pid, el.pid);
     }
     size_t data_offset = 0;
