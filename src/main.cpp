@@ -55,8 +55,8 @@ class List {
       }
       size_t prev = last_element_offsets[pid];
       if (prev != 0)
-        elements[prev].next_offset = i + 1;
-      last_element_offsets[pid] = i;
+        elements[prev - 1].next_offset = i + 1;
+      last_element_offsets[pid] = i + 1;
 
 
       Element element{
@@ -117,18 +117,18 @@ class List {
 
     std::cout << "| " << std::setw(6) << std::right << index << " ";
     std::cout << "| " << std::setw(16) << std::right << elem.uid << " ";
-    std::cout << "| 0x" << std::setw(14) << std::right << std::hex << reinterpret_cast<uintptr_t>(elem.data_ptr) << std::dec << " ";
+    std::cout << "|  0x" << std::setw(12) << std::right << std::hex << reinterpret_cast<uintptr_t>(elem.data_ptr) << std::dec << "  ";
     std::cout << "| " << std::setw(16) << std::right << elem.data_size << " ";
     std::cout << "| " << std::setw(16) << std::right << elem.pid << " ";
 
     if (elem.next_offset == 0) {
-      std::cout << "| " << std::setw(16) << std::right << "NULL" << " ";
+      std::cout << "| " << std::setw(16) << std::right << "N/A" << " ";
     } else {
       std::cout << "| " << std::setw(16) << std::right << (elem.next_offset - 1) << " ";
     }
 
     if (elem.prev_offset == 0) {
-      std::cout << "| " << std::setw(16) << std::right << "NULL" << " ";
+      std::cout << "| " << std::setw(16) << std::right << "N/A" << " ";
     } else {
       std::cout << "| " << std::setw(16) << std::right << (elem.prev_offset - 1) << " ";
     }
