@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <iostream>
 #include <sstream>
 #include <stdint.h>
@@ -6,12 +7,13 @@
 #include <limits.h>
 #include <cstdlib>
 #include <algorithm>
-#include <iomanip>
 #include <unordered_map>
 #include <cstring>
+#include <iomanip>
+#include <chrono>
 
 class List {
-  public:
+public:
   class Element {
     public:
     uint64_t uid;        // Идентификатор элемента.
@@ -20,6 +22,12 @@ class List {
     uint64_t pid;        // Номер процесса.
     size_t next_offset;  // Ссылка (индекс) на следующий элемент или SIZE_MAX если нет.
     size_t prev_offset;  // Ссылка (индекс) на предыдущий элемент или SIZE_MAX если нет.
+  };
+
+  class MemBlock {
+    public:
+    uint8_t* data_ptr;   // Указатель на память.
+    size_t data_size;    // Размер памяти.
   };
 
   static List generate(size_t n_elements, double free_percent) {
@@ -36,6 +44,7 @@ class List {
     std::vector<Element> elements{};
     size_t total_size = 0;
     size_t free_size = 0;
+    size_t uid_counter = 1;
 
     elements.reserve(n_elements);
     for (size_t i = 0; i < n_elements; i++) {
@@ -51,18 +60,19 @@ class List {
         elements[prev].next_offset = i;
       last_element_offsets[pid] = i;
 
-      Element element{
-        .uid = i + 1,
+      if (pid == 0)
+        free_size += size;
+
+      total_size += size;
+
+      elements.push_back({
+        .uid = uid_counter++,
         .data_ptr = nullptr,
         .data_size = size,
         .pid = pid,
         .next_offset = SIZE_MAX,
         .prev_offset = prev,
-      };
-
-      free_size += size;
-      total_size += size;
-      elements.push_back(element);
+      });
     }
 
     uint8_t* data = new uint8_t[total_size]();
@@ -72,60 +82,100 @@ class List {
       data_ptr += element.data_size;
     }
 
-    return List{elements, data, free_size};
+    return List{elements, data, free_size, total_size, uid_counter};
   }
 
   void defragment_full() {
-    uint8_t* new_data = new uint8_t[free_size]();
+    uint8_t* new_data = new uint8_t[total_size]();
     size_t offset = 0;
 
     for (auto& el : elements) {
-      if (el.pid == 0) {
+      if (el.pid != 0) {
         std::memcpy(new_data + offset, el.data_ptr, el.data_size);
+        el.data_ptr = new_data + offset;
         offset += el.data_size;
       }
     }
 
-    std::unordered_map<size_t, size_t> old_to_new;
-    size_t new_index = 0;
-    for (size_t i = 0; i < elements.size(); i++) {
-      if (elements[i].pid != 0) {
-        old_to_new[i] = new_index;
-        new_index++;
-      }
+    std::unordered_map<size_t, size_t> old_to_new = get_link_mapping();
+    fix_links(old_to_new);
+
+    for (auto& block : blocks) {
+      delete[] block.data_ptr;
     }
 
-    elements.erase(std::remove_if(elements.begin(), elements.end(), [&](Element& e) {
-      if (e.pid == 0) {
-        return true;
-      } else {
-        if (e.next_offset != SIZE_MAX) {
-          e.next_offset = old_to_new[e.next_offset];
-        }
-        if (e.prev_offset != SIZE_MAX) {
-          e.prev_offset = old_to_new[e.prev_offset];
-        }
-        return false;
-      }
-    }), elements.end());
+    blocks.clear();
+    blocks.push_back({.data_ptr = new_data, .data_size = total_size});
 
     elements.push_back({
-      .data_ptr = new_data,
+      .uid = uid_counter++,
+      .data_ptr = new_data + offset,
       .data_size = free_size,
       .pid = 0,
       .next_offset = SIZE_MAX,
       .prev_offset = SIZE_MAX
     });
 
-    elements.shrink_to_fit();
   }
 
   void defragment_free() {
+    size_t i = 0;
+    for (size_t j = 0; j < elements.size(); j++) {
+      if (elements[j].pid != 0) continue;
+
+      i = j;
+      break;
+    }
+
+    while (elements[i].prev_offset != SIZE_MAX) {
+      i = elements[i].prev_offset;
+    }
+
+    uint8_t* occupied_block = new uint8_t[total_size - free_size]();
+    size_t occupied_data_offset = 0;
+
+    for (auto& el : elements) {
+      if (el.pid != 0) {
+        std::memcpy(occupied_block + occupied_data_offset, el.data_ptr, el.data_size);
+        el.data_ptr = occupied_block + occupied_data_offset;
+        occupied_data_offset += el.data_size;
+      }
+    }
+
+    uint8_t* free_block = new uint8_t[free_size]();
+    size_t new_data_offset = 0;
+
+    do {
+      std::memcpy(free_block + new_data_offset, elements[i].data_ptr, elements[i].data_size);
+      new_data_offset += elements[i].data_size;
+
+      i = elements[i].next_offset;
+    } while (elements[i].next_offset != SIZE_MAX);
+
+    for (auto& block : blocks) {
+      delete[] block.data_ptr;
+    }
+
+    blocks.clear();
+    blocks.push_back({.data_ptr = occupied_block, .data_size = occupied_data_offset});
+    blocks.push_back({.data_ptr = free_block, .data_size = free_size});
+
+    std::unordered_map<size_t, size_t> old_to_new = get_link_mapping();
+    fix_links(old_to_new);
+
+    elements.push_back({
+      .uid = uid_counter++,
+      .data_ptr = free_block,
+      .data_size = free_size,
+      .pid = 0,
+      .next_offset = 0,
+      .prev_offset = 0
+    });
   }
 
   void print() const {
     const size_t n = elements.size();
-    const size_t print_count = 10;
+    const size_t print_count = 100;
 
     std::cout << "+--------+------------------+------------------+------------------+------------------+------------------+------------------+" << std::endl;
     std::cout << "| Row No.|       UID        |     Address      |       Size       |     Process      |       Next       |     Previous     |" << std::endl;
@@ -151,10 +201,80 @@ class List {
     std::cout << "Total elements: " << n << std::endl;
   }
 
-  ~List() {
-    delete[] this->data;
+  List& operator=(const List& other) {
+    if (this == &other) return *this;
+
+    elements = other.elements;
+
+    blocks.clear();
+
+    for (const auto& block : other.blocks) {
+      uint8_t* new_block = new uint8_t[block.data_size];
+      std::memcpy(new_block, block.data_ptr, block.data_size);
+      blocks.push_back({.data_ptr = new_block, .data_size = block.data_size});
+    }
+
+    for (auto& el : elements) {
+      for (size_t i = 0; i < other.blocks.size(); i++) {
+        uint8_t* old_block_start = other.blocks[i].data_ptr;
+        uint8_t* old_block_end = old_block_start + other.blocks[i].data_size;
+
+        if (el.data_ptr >= old_block_start && el.data_ptr < old_block_end) {
+          size_t offset = el.data_ptr - old_block_start;
+          el.data_ptr = blocks[i].data_ptr + offset;
+          break;
+        }
+      }
+    }
+
+    free_size = other.free_size;
+    total_size = other.total_size;
+    uid_counter = other.uid_counter;
+    return *this;
   }
-  private:
+
+  List(const List& other): elements(), blocks(), free_size(), total_size(0), uid_counter(0) {
+    *this = other;
+  }
+
+  ~List() {
+    for (auto& block : blocks) {
+      delete[] block.data_ptr;
+    }
+  }
+
+private:
+  std::unordered_map<size_t, size_t> get_link_mapping() const {
+    std::unordered_map<size_t, size_t> old_to_new;
+    size_t new_index = 0;
+    for (size_t i = 0; i < elements.size(); i++) {
+      if (elements[i].pid != 0) {
+        old_to_new[i + 1] = new_index + 1;
+        new_index++;
+      }
+    }
+
+    return old_to_new;
+  }
+
+  void fix_links(std::unordered_map<size_t, size_t>& old_to_new) {
+    elements.erase(std::remove_if(elements.begin(), elements.end(), [&](Element& e) {
+      if (e.pid == 0) {
+        return true;
+      } else {
+        if (e.next_offset != SIZE_MAX) {
+          e.next_offset = old_to_new[e.next_offset];
+        }
+        if (e.prev_offset != SIZE_MAX) {
+          e.prev_offset = old_to_new[e.prev_offset];
+        }
+        return false;
+      }
+    }), elements.end());
+
+    elements.shrink_to_fit();
+  }
+
   void print_row(size_t index) const {
     const Element& elem = elements[index];
 
@@ -179,16 +299,26 @@ class List {
     std::cout << "|" << std::endl;
   }
 
-  List(std::vector<Element> elements, uint8_t* data, size_t free_size) {
-    this->elements = elements;
-    this->data = data;
-    this->free_size = free_size;
-  }
+  List(
+    std::vector<Element> elements,
+    uint8_t* data,
+    size_t free_size,
+    size_t total_size,
+    size_t uid_counter
+  ):
+  elements(elements),
+  blocks{{.data_ptr = data, .data_size = total_size}},
+  free_size(free_size),
+  total_size(total_size),
+  uid_counter(uid_counter) {}
 
+  std::vector<MemBlock> blocks;
   std::vector<Element> elements;
-  uint8_t* data;
   size_t free_size;
+  size_t total_size;
+  size_t uid_counter;
 };
+
 
 int main(int argc, char *argv[]) {
   std::stringstream ss;
@@ -234,10 +364,23 @@ int main(int argc, char *argv[]) {
     std::exit(EXIT_FAILURE);
   }
 
-  auto list = List::generate(n_rows, (double)free_percent/100);
-  list.print();
-  list.defragment_free();
-  list.print();
+  auto list1 = List::generate(n_rows, (double)free_percent/100);
+  auto list2 = list1;
+  list1.print();
+
+  auto start = std::chrono::steady_clock::now();
+  list1.defragment_full();
+  auto end = std::chrono::steady_clock::now();
+  std::cout << "Время выполнения defragment_full: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
+
+  list1.print();
+
+  start = std::chrono::steady_clock::now();
+  list2.defragment_free();
+  end = std::chrono::steady_clock::now();
+  std::cout << "Время выполнения defragment_free: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
+
+  list2.print();
 
   return 0;
 }
