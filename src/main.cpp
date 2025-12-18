@@ -86,7 +86,6 @@ class List {
   }
 
   void defragment_full() {
-    std::cout << free_size << std::endl;
     uint8_t* new_data = new uint8_t[free_size]();
     size_t offset = 0;
 
@@ -101,7 +100,7 @@ class List {
     size_t new_index = 0;
     for (size_t i = 0; i < elements.size(); i++) {
       if (elements[i].pid != 0) {
-        old_to_new[i] = new_index;
+        old_to_new[i + 1] = new_index + 1;
         new_index++;
       }
     }
@@ -197,6 +196,7 @@ class List {
     this->data = data;
     this->free_size = free_size;
   }
+
   std::vector<Element> elements;
   uint8_t* data;
   size_t free_size;
