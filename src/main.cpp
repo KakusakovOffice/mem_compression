@@ -10,16 +10,6 @@
 #include <unordered_map>
 #include <cstring>
 
-// Парсим аргументы
-// list1 = init_list()
-// list2 = copy_list(list1)
-// print_list(list1)
-// compress_list(list1)
-// print_list(list1)
-// compress_list(list2)
-// print_list(list2)
-// log_list() // maybe?= kvp.second;
-
 class List {
   public:
   class Element {
@@ -28,8 +18,8 @@ class List {
     uint8_t* data_ptr;   // Указатель на сегмент память.
     size_t data_size;    // Размер сегмента памяти.
     uint64_t pid;        // Номер процесса.
-    size_t next_offset;  // Ссылка (индекс + 1) на следующий элемент того же процесса.
-    size_t prev_offset;  // Ссылка (индекс + 1) на предыдущий элемент того же процесса.
+    size_t next_offset;  // Ссылка (индекс) на следующий элемент или SIZE_MAX если нет.
+    size_t prev_offset;  // Ссылка (индекс) на предыдущий элемент или SIZE_MAX если нет.
   };
 
   static List generate(size_t n_elements, double free_percent) {
@@ -41,7 +31,7 @@ class List {
     std::uniform_int_distribution<size_t> pid_rng{1, n_processes};
     std::normal_distribution<double> size_rng{40, 2};
 
-    std::vector<size_t> last_element_offsets(n_processes + 1, 0);
+    std::vector<size_t> last_element_offsets(n_processes + 1, SIZE_MAX);
 
     std::vector<Element> elements{};
     size_t total_size = 0;
@@ -57,16 +47,16 @@ class List {
 
       size_t prev = last_element_offsets[pid];
 
-      if (prev != 0)
-        elements[prev - 1].next_offset = i + 1;
-      last_element_offsets[pid] = i + 1;
+      if (prev != SIZE_MAX)
+        elements[prev].next_offset = i;
+      last_element_offsets[pid] = i;
 
       Element element{
         .uid = i + 1,
         .data_ptr = nullptr,
         .data_size = size,
         .pid = pid,
-        .next_offset = 0,
+        .next_offset = SIZE_MAX,
         .prev_offset = prev,
       };
 
@@ -86,7 +76,6 @@ class List {
   }
 
   void defragment_full() {
-    std::cout << free_size << std::endl;
     uint8_t* new_data = new uint8_t[free_size]();
     size_t offset = 0;
 
@@ -110,10 +99,10 @@ class List {
       if (e.pid == 0) {
         return true;
       } else {
-        if (e.next_offset != 0) {
+        if (e.next_offset != SIZE_MAX) {
           e.next_offset = old_to_new[e.next_offset];
         }
-        if (e.prev_offset != 0) {
+        if (e.prev_offset != SIZE_MAX) {
           e.prev_offset = old_to_new[e.prev_offset];
         }
         return false;
@@ -124,16 +113,14 @@ class List {
       .data_ptr = new_data,
       .data_size = free_size,
       .pid = 0,
-      .next_offset = 0,
-      .prev_offset = 0
+      .next_offset = SIZE_MAX,
+      .prev_offset = SIZE_MAX
     });
 
     elements.shrink_to_fit();
   }
 
   void defragment_free() {
-
-    // TODO: ...
   }
 
   void print() const {
@@ -177,16 +164,16 @@ class List {
     std::cout << "| " << std::setw(16) << std::right << elem.data_size << " ";
     std::cout << "| " << std::setw(16) << std::right << elem.pid << " ";
 
-    if (elem.next_offset == 0) {
+    if (elem.next_offset == SIZE_MAX) {
       std::cout << "| " << std::setw(16) << std::right << "N/A" << " ";
     } else {
-      std::cout << "| " << std::setw(16) << std::right << (elem.next_offset - 1) << " ";
+      std::cout << "| " << std::setw(16) << std::right << elem.next_offset << " ";
     }
 
-    if (elem.prev_offset == 0) {
+    if (elem.prev_offset == SIZE_MAX) {
       std::cout << "| " << std::setw(16) << std::right << "N/A" << " ";
     } else {
-      std::cout << "| " << std::setw(16) << std::right << (elem.prev_offset - 1) << " ";
+      std::cout << "| " << std::setw(16) << std::right << elem.prev_offset << " ";
     }
 
     std::cout << "|" << std::endl;
@@ -197,6 +184,7 @@ class List {
     this->data = data;
     this->free_size = free_size;
   }
+
   std::vector<Element> elements;
   uint8_t* data;
   size_t free_size;
@@ -248,7 +236,7 @@ int main(int argc, char *argv[]) {
 
   auto list = List::generate(n_rows, (double)free_percent/100);
   list.print();
-  list.defragment_full();
+  list.defragment_free();
   list.print();
 
   return 0;
