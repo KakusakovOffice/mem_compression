@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <algorithm>
 #include <iomanip>
+#include <unordered_map>
+#include <cstring>
 
 // Парсим аргументы
 // list1 = init_list()
@@ -16,16 +18,16 @@
 // print_list(list1)
 // compress_list(list2)
 // print_list(list2)
-// log_list() // maybe?
+// log_list() // maybe?= kvp.second;
 
 class List {
   public:
   class Element {
     public:
-    uint64_t uid;  // Идентификатор элемента.
-    uint8_t* data_ptr;  // Указатель на сегмент память.
-    size_t data_size;  // Размер сегмента памяти.
-    uint64_t pid;  // Номер процесса.
+    uint64_t uid;        // Идентификатор элемента.
+    uint8_t* data_ptr;   // Указатель на сегмент память.
+    size_t data_size;    // Размер сегмента памяти.
+    uint64_t pid;        // Номер процесса.
     size_t next_offset;  // Ссылка (индекс + 1) на следующий элемент того же процесса.
     size_t prev_offset;  // Ссылка (индекс + 1) на предыдущий элемент того же процесса.
   };
@@ -80,7 +82,50 @@ class List {
     return List{elements, data};
   }
 
-  void print() {
+  void defragment_full() {
+    std::unordered_map<uint64_t, size_t> sizes{};
+    uint64_t max_pid = 0;
+    size_t total_size = 0;
+    for (const auto& el : elements) {
+      if (sizes.count(el.pid) == 0) {
+        sizes[el.pid] = 0;
+      }
+      sizes[el.pid] += el.data_size;
+      total_size += total_size;
+      max_pid = std::max(max_pid, el.pid);
+    }
+    size_t data_offset = 0;
+    for (auto& kvp : sizes) {
+      data_offset += kvp.second;
+      kvp.second = data_offset;
+    }
+
+    uint8_t* data1 = new uint8_t[total_size]();
+    for (const auto& el : elements) {
+      std::memcpy(&data1[sizes[el.pid] - el.data_size], el.data_ptr, el.data_size);
+      sizes[el.pid] -= el.data_size;
+    }
+
+    this->elements.resize(elements.size());
+    size_t i = 0;
+    for (const auto& kvp : sizes) {
+      this->elements[i].data_ptr = &data1[sizes[kvp.first]];
+      this->elements[i].pid = kvp.first;
+      this->elements[i].data_size = kvp.second;
+      this->elements[i].next_offset = 0;
+      this->elements[i].prev_offset = 0;
+      i++;
+    }
+
+    delete[] this->data;
+    this->data = data1;
+  }
+
+  void defragment_free() {
+    // TODO: ...
+  }
+
+  void print() const {
     const size_t n = elements.size();
     const size_t print_count = 10;
 
@@ -112,7 +157,7 @@ class List {
     delete[] this->data;
   }
   private:
-  void print_row(size_t index) {
+  void print_row(size_t index) const {
     const Element& elem = elements[index];
 
     std::cout << "| " << std::setw(6) << std::right << index << " ";
@@ -189,6 +234,8 @@ int main(int argc, char *argv[]) {
   }
 
   auto list = List::generate(n_rows, (double)free_percent/100);
+  list.print();
+  list.defragment_full();
   list.print();
 
   return 0;
