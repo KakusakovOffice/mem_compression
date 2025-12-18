@@ -8,3 +8,6 @@ project(
 )
 
 add_executable(mem_compression src/main.cpp)
+
+add_compile_options(-fsanitize=address)
+add_link_options(-fsanitize=address)
