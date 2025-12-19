@@ -1,10 +1,10 @@
 #include <cstdint>
 #include <iostream>
 #include <sstream>
-#include <stdint.h>
+#include <utility>
 #include <vector>
 #include <random>
-#include <limits.h>
+#include <climits>
 #include <cstdlib>
 #include <algorithm>
 #include <unordered_map>
@@ -31,11 +31,11 @@ public:
   };
 
   static List generate(size_t n_elements, double free_percent) {
-    size_t n_processes = std::max(n_elements / 100, (size_t)3);
+    const size_t n_processes = std::max(n_elements / 100, static_cast<size_t>(3));
 
     std::random_device rd{};
     std::mt19937 rng{rd()};
-    std::uniform_int_distribution<size_t> is_free_rng{0, 1};
+    std::uniform_real_distribution<double> is_free_rng{0, 1};
     std::uniform_int_distribution<size_t> pid_rng{1, n_processes};
     std::normal_distribution<double> size_rng{40, 2};
 
@@ -48,13 +48,16 @@ public:
 
     elements.reserve(n_elements);
     for (size_t i = 0; i < n_elements; i++) {
-      size_t size = std::max((size_t)std::floor(size_rng(rng)), (size_t)1);
+      const size_t size = std::max(
+        static_cast<size_t>(std::floor(size_rng(rng))),
+        static_cast<size_t>(1)
+      );
 
       uint64_t pid =
         is_free_rng(rng) < free_percent ?
-          0 : (uint64_t)std::floor(pid_rng(rng));
+          0 : static_cast<uint64_t>(std::floor(pid_rng(rng)));
 
-      size_t prev = last_element_offsets[pid];
+      const size_t prev = last_element_offsets[pid];
 
       if (prev != SIZE_MAX)
         elements[prev].next_offset = i;
@@ -75,7 +78,7 @@ public:
       });
     }
 
-    uint8_t* data = new uint8_t[total_size]();
+    auto* data = new uint8_t[total_size]();
     uint8_t* data_ptr = data;
     for (auto& element : elements) {
       element.data_ptr = data_ptr;
@@ -86,7 +89,7 @@ public:
   }
 
   void defragment_basic() {
-    uint8_t* new_data = new uint8_t[total_size]();
+    auto* new_data = new uint8_t[total_size]();
     size_t offset = 0;
 
     for (auto& el : elements) {
@@ -100,7 +103,7 @@ public:
     std::unordered_map<size_t, size_t> old_to_new = get_link_mapping();
     fix_links(old_to_new);
 
-    for (auto& block : blocks) {
+    for (const auto& block : blocks) {
       delete[] block.data_ptr;
     }
 
@@ -131,7 +134,7 @@ public:
       i = elements[i].prev_offset;
     }
 
-    uint8_t* occupied_block = new uint8_t[total_size]();
+    auto* occupied_block = new uint8_t[total_size]();
     size_t occupied_data_offset = 0;
 
     for (auto& el : elements) {
@@ -164,13 +167,13 @@ public:
 
   void print() const {
     const size_t n = elements.size();
-    const size_t print_count = 6;
+    constexpr size_t print_count = 6;
 
     std::cout << "+--------+------------------+------------------+------------------+------------------+------------------+------------------+" << std::endl;
     std::cout << "| Row No.|       UID        |     Address      |       Size       |     Process      |       Next       |     Previous     |" << std::endl;
     std::cout << "+--------+------------------+------------------+------------------+------------------+------------------+------------------+" << std::endl;
 
-    size_t first_limit = std::min(print_count, n);
+    const size_t first_limit = std::min(print_count, n);
     for (size_t i = 0; i < first_limit; i++) {
       print_row(i);
     }
@@ -198,7 +201,7 @@ public:
     blocks.clear();
 
     for (const auto& block : other.blocks) {
-      uint8_t* new_block = new uint8_t[block.data_size];
+      auto* new_block = new uint8_t[block.data_size];
       std::memcpy(new_block, block.data_ptr, block.data_size);
       blocks.push_back({.data_ptr = new_block, .data_size = block.data_size});
     }
@@ -222,12 +225,12 @@ public:
     return *this;
   }
 
-  List(const List& other): elements(), blocks(), free_size(), total_size(0), uid_counter(0) {
+  List(const List& other): blocks(), elements(), free_size(), total_size(0), uid_counter(0) {
     *this = other;
   }
 
   ~List() {
-    for (auto& block : blocks) {
+    for (const auto& block : blocks) {
       delete[] block.data_ptr;
     }
   }
@@ -291,12 +294,12 @@ private:
   List(
     std::vector<Element> elements,
     uint8_t* data,
-    size_t free_size,
-    size_t total_size,
-    size_t uid_counter
+    const size_t free_size,
+    const size_t total_size,
+    const size_t uid_counter
   ):
-  elements(elements),
   blocks{{.data_ptr = data, .data_size = total_size}},
+  elements(std::move(elements)),
   free_size(free_size),
   total_size(total_size),
   uid_counter(uid_counter) {}
@@ -310,10 +313,10 @@ private:
 
 
 int main(int argc, char *argv[]) {
-  std::stringstream ss;
   uint64_t n_rows = 100;
+
   if (argc >= 2) {
-    ss << argv[1];
+    std::stringstream ss(argv[1]);
     ss >> n_rows;
     if (ss.fail()) {
       std::cerr
@@ -323,11 +326,12 @@ int main(int argc, char *argv[]) {
       std::exit(EXIT_FAILURE);
     }
   }
-  uint64_t free_percent = 50;
+
+  double free_percent = 50.0;
   if (argc >= 3) {
-    ss.clear();
-    ss << argv[2];
+    std::stringstream ss(argv[2]);
     ss >> free_percent;
+
     if (ss.fail()) {
       std::cerr
       <<  "Второй аргумент программы введен неправильно -"
@@ -337,7 +341,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  const uint64_t n_rows_limit = (uint64_t)std::numeric_limits<size_t>::max();
+  constexpr auto n_rows_limit = std::numeric_limits<uint64_t>::max();
   if (n_rows > n_rows_limit) {
     std::cerr
     << "Слишком большое количество строк в таблице (первый аргумент), максимум: "
@@ -346,7 +350,7 @@ int main(int argc, char *argv[]) {
     std::exit(EXIT_FAILURE);
   }
 
-  const uint64_t free_precent_limit = 100;
+  constexpr uint64_t free_precent_limit = 100;
   if (free_percent > free_precent_limit) {
     std::cerr
     << "Слишком большой процент пустых строк в таблице (второй аргумент), максимум: "
@@ -354,7 +358,7 @@ int main(int argc, char *argv[]) {
     std::exit(EXIT_FAILURE);
   }
 
-  auto list1 = List::generate(n_rows, (double)free_percent/100);
+  auto list1 = List::generate(n_rows, free_percent/100);
   auto list2 = list1;
   list1.print();
 
