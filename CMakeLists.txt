@@ -9,5 +9,9 @@ project(
 
 add_executable(mem_compression src/main.cpp)
 
-add_compile_options(-fsanitize=address)
-add_link_options(-fsanitize=address)
+#add_compile_options(-fsanitize=address)
+#add_link_options(-fsanitize=address)
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+set(BUILD_SHARED_LIBS OFF)
+set(CMAKE_EXE_LINKER_FLAGS "-static")
