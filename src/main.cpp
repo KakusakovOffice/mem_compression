@@ -85,7 +85,7 @@ public:
     return List{elements, data, free_size, total_size, uid_counter};
   }
 
-  void defragment_full() {
+  void defragment_optimized() {
     uint8_t* new_data = new uint8_t[total_size]();
     size_t offset = 0;
 
@@ -118,7 +118,7 @@ public:
 
   }
 
-  void defragment_free() {
+  void defragment_slow() {
     size_t i = 0;
     for (size_t j = 0; j < elements.size(); j++) {
       if (elements[j].pid != 0) continue;
@@ -370,16 +370,16 @@ int main(int argc, char *argv[]) {
   list1.print();
 
   auto start = std::chrono::steady_clock::now();
-  list1.defragment_full();
+  list1.defragment_optimized();
   auto end = std::chrono::steady_clock::now();
-  std::cout << "Время выполнения defragment_full: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
+  std::cout << "Время выполнения defragment_optimized: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
 
   list1.print();
 
   start = std::chrono::steady_clock::now();
-  list2.defragment_free();
+  list2.defragment_slow();
   end = std::chrono::steady_clock::now();
-  std::cout << "Время выполнения defragment_free: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
+  std::cout << "Время выполнения defragment_slow: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
 
   list2.print();
 
