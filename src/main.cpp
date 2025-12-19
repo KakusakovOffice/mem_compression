@@ -336,6 +336,7 @@ int main(int argc, char *argv[]) {
   }
   uint64_t free_percent = 50;
   if (argc >= 3) {
+    ss.clear();
     ss << argv[2];
     ss >> free_percent;
     if (ss.fail()) {
