@@ -85,7 +85,7 @@ public:
     return List{elements, data, free_size, total_size, uid_counter};
   }
 
-  void defragment_optimized() {
+  void defragment_basic() {
     uint8_t* new_data = new uint8_t[total_size]();
     size_t offset = 0;
 
@@ -118,7 +118,7 @@ public:
 
   }
 
-  void defragment_slow() {
+  void defragment_optimized() {
     size_t i = 0;
     for (size_t j = 0; j < elements.size(); j++) {
       if (elements[j].pid != 0) continue;
@@ -131,7 +131,7 @@ public:
       i = elements[i].prev_offset;
     }
 
-    uint8_t* occupied_block = new uint8_t[total_size - free_size]();
+    uint8_t* occupied_block = new uint8_t[total_size]();
     size_t occupied_data_offset = 0;
 
     for (auto& el : elements) {
@@ -142,40 +142,29 @@ public:
       }
     }
 
-    uint8_t* free_block = new uint8_t[free_size]();
-    size_t new_data_offset = 0;
-
-    do {
-      std::memcpy(free_block + new_data_offset, elements[i].data_ptr, elements[i].data_size);
-      new_data_offset += elements[i].data_size;
-
-      i = elements[i].next_offset;
-    } while (elements[i].next_offset != SIZE_MAX);
-
     for (auto& block : blocks) {
       delete[] block.data_ptr;
     }
 
     blocks.clear();
     blocks.push_back({.data_ptr = occupied_block, .data_size = occupied_data_offset});
-    blocks.push_back({.data_ptr = free_block, .data_size = free_size});
 
     std::unordered_map<size_t, size_t> old_to_new = get_link_mapping();
     fix_links(old_to_new);
 
     elements.push_back({
       .uid = uid_counter++,
-      .data_ptr = free_block,
+      .data_ptr = occupied_block + occupied_data_offset,
       .data_size = free_size,
       .pid = 0,
-      .next_offset = 0,
-      .prev_offset = 0
+      .next_offset = SIZE_MAX,
+      .prev_offset = SIZE_MAX
     });
   }
 
   void print() const {
     const size_t n = elements.size();
-    const size_t print_count = 100;
+    const size_t print_count = 6;
 
     std::cout << "+--------+------------------+------------------+------------------+------------------+------------------+------------------+" << std::endl;
     std::cout << "| Row No.|       UID        |     Address      |       Size       |     Process      |       Next       |     Previous     |" << std::endl;
@@ -370,16 +359,16 @@ int main(int argc, char *argv[]) {
   list1.print();
 
   auto start = std::chrono::steady_clock::now();
-  list1.defragment_optimized();
+  list1.defragment_basic();
   auto end = std::chrono::steady_clock::now();
-  std::cout << "Время выполнения defragment_optimized: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
+  std::cout << "Время выполнения defragment_basic: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
 
   list1.print();
 
   start = std::chrono::steady_clock::now();
-  list2.defragment_slow();
+  list2.defragment_optimized();
   end = std::chrono::steady_clock::now();
-  std::cout << "Время выполнения defragment_slow: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
+  std::cout << "Время выполнения defragment_optimized: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
 
   list2.print();
 
