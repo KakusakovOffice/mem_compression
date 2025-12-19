@@ -249,7 +249,7 @@ private:
     size_t new_index = 0;
     for (size_t i = 0; i < elements.size(); i++) {
       if (elements[i].pid != 0) {
-        old_to_new[i + 1] = new_index + 1;
+        old_to_new[i] = new_index;
         new_index++;
       }
     }
