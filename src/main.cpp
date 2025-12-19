@@ -365,14 +365,14 @@ int main(int argc, char *argv[]) {
   auto start = std::chrono::steady_clock::now();
   list1.defragment_basic();
   auto end = std::chrono::steady_clock::now();
-  std::cout << "Время выполнения defragment_basic: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
+  std::cout << "Время выполнения defragment_basic: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ms" << std::endl;
 
   list1.print();
 
   start = std::chrono::steady_clock::now();
   list2.defragment_optimized();
   end = std::chrono::steady_clock::now();
-  std::cout << "Время выполнения defragment_optimized: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
+  std::cout << "Время выполнения defragment_optimized: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ms" << std::endl;
 
   list2.print();
 
