@@ -313,6 +313,9 @@ private:
 
 
 int main(int argc, char *argv[]) {
+#ifdef _WIN32
+  std::setlocale(LC_ALL, "ru");
+#endif //_WIN32
   uint64_t n_rows = 100;
 
   if (argc >= 2) {
